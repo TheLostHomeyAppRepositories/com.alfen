@@ -2,5 +2,4 @@
 /node_modules/
 /.homeybuild/
 /.alfen-debug.json
-/EveConnect/
-.aider*
+.DS_STORE
