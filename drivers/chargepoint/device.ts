@@ -2,7 +2,6 @@
 
 import Homey from 'homey';
 import { DeviceSettings } from '../../localTypes/types';
-import { EnergySettings } from '../../localTypes/types';
 import { AlfenApi } from '../../lib/AlfenApi';
 
 module.exports = class MyDevice extends Homey.Device {
@@ -176,12 +175,13 @@ module.exports = class MyDevice extends Homey.Device {
   /** Helper Functions */
   async #updateTargetPowerOptions(measureCurrentLimit: number): Promise<void> {
     try {
+      const phases = this.#detectActivePhases();
       // Calculate max power in Watts: currentLimit (A) * phases * voltage (V)
-      const maxPowerWatts = Math.round(measureCurrentLimit * this.activePhases * 230);
+      const maxPowerWatts = Math.round(measureCurrentLimit * phases * 230);
 
       // Only update if the max value has changed
       if (this.#lastTargetPowerMax !== maxPowerWatts) {
-        this.log(`Updating target_power options: max=${maxPowerWatts}W (${measureCurrentLimit}A × ${this.activePhases} phases × 230V)`);
+        this.log(`Updating target_power options: max=${maxPowerWatts}W (${measureCurrentLimit}A × ${phases} phases × 230V)`);
 
         this.setCapabilityOptions('target_power', {
           excludeMin: 0,
@@ -273,13 +273,7 @@ module.exports = class MyDevice extends Homey.Device {
     });
 
     this.registerCapabilityListener('evcharger_charging', async (value) => {
-      if (value === true) {
-        await this.#setOperativeMode(0);
-      }
-
-      if (value === false) {
-        await this.#setOperativeMode(2);
-      }
+      await this.#setChargingEnabled(Boolean(value));
     });
   }
 
@@ -342,6 +336,57 @@ module.exports = class MyDevice extends Homey.Device {
     } finally {
       await this.alfenApi.apiLogout();
     }
+  }
+
+  #detectActivePhases(): number {
+    const voltageL2 = Number(this.getCapabilityValue('measure_voltage.l2') ?? 0);
+    const voltageL3 = Number(this.getCapabilityValue('measure_voltage.l3') ?? 0);
+
+    // Single-phase stations often expose only L1; 3-phase has meaningful L2/L3 voltage.
+    const detected = voltageL2 > 50 || voltageL3 > 50 ? 3 : 1;
+    this.activePhases = detected;
+
+    return detected;
+  }
+
+  #getStartChargingLimitWatts(): number {
+    const currentLimit = Number(this.getCapabilityValue('measure_current.limit') ?? 0);
+    const phases = this.#detectActivePhases();
+    const derivedMax = Math.round(currentLimit * phases * 230);
+    if (Number.isFinite(derivedMax) && derivedMax > 0) {
+      this.#lastTargetPowerMax = derivedMax;
+      return derivedMax;
+    }
+
+    if (this.#lastTargetPowerMax != null && this.#lastTargetPowerMax > 0) {
+      return this.#lastTargetPowerMax;
+    }
+
+    // Fall back to the current target value if no max has been discovered yet.
+    const currentTarget = Number(this.getCapabilityValue('target_power') ?? 0);
+    if (Number.isFinite(currentTarget) && currentTarget > 0) {
+      return currentTarget;
+    }
+
+    return 0;
+  }
+
+  async #setChargingEnabled(enabled: boolean) {
+    const targetWatts = enabled ? this.#getStartChargingLimitWatts() : 0;
+
+    this.log('setChargingEnabled', { enabled, targetWatts });
+
+    try {
+      await this.alfenApi.apiLogin();
+      await this.alfenApi.apiSetChargingLimit(targetWatts, this.#detectActivePhases());
+    } catch (error) {
+      this.log('Error setting charging enabled state via charging limit:', error);
+      throw new Error(`${error}`);
+    } finally {
+      await this.alfenApi.apiLogout();
+    }
+
+    await this.refreshDevice();
   }
 
   async #setChargeType(value: string) {
@@ -469,13 +514,15 @@ module.exports = class MyDevice extends Homey.Device {
 
     try {
       await this.alfenApi.apiLogin();
-      await this.alfenApi.apiSetChargingLimit(value, 3);
+      await this.alfenApi.apiSetChargingLimit(value, this.#detectActivePhases());
     } catch (error) {
       this.log('Error setting station limit:', error);
       throw new Error(`${error}`);
     } finally {
       await this.alfenApi.apiLogout();
     }
+
+    await this.refreshDevice();
 
     return true;
   }

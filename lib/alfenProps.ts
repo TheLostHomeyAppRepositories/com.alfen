@@ -206,7 +206,7 @@ export function getCapabilityMap(socketIndex: SocketIndex): Record<string, Capab
     [propIdToApiId(alfenProps.general.stationLimit)]: Cap.StationLimit,
     [propIdToApiId(alfenProps.general.authMode)]: Cap.AuthMode,
     [propIdToApiId(alfenProps.general.chargeID)]: Cap.ChargeID,
-    [propIdToApiId(alfenProps.general.operativeMode)]: Cap.EvCharging,
+    //[propIdToApiId(alfenProps.general.operativeMode)]: Cap.EvCharging,
     [propIdToApiId(alfenProps.solar.chargeType)]: Cap.ChargeType,
     [propIdToApiId(alfenProps.solar.greenShare)]: Cap.GreenShare,
     [propIdToApiId(alfenProps.solar.comfortChargeLevel)]: Cap.ComfortChargeLevel,

@@ -31,5 +31,9 @@
   "2.1.0": {
     "en": "Added ability to properly set the target power of the charging station!",
     "nl": "Toegevoegd mogelijkheid om het doelvermogen van het laadstation correct in te stellen!"
+  },
+  "2.1.1": {
+    "en": "Reverted some changes, to get metrics back again",
+    "nl": "Sommige wijzigingen teruggedraaid, dit zou de laadpaal in ieder geval weer beter status moeten laten rapporteren"
   }
 }

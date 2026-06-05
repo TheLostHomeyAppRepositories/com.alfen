@@ -6,7 +6,7 @@ import * as https from 'https';
 
 import { HttpsPromiseOptions, HttpsPromiseResponse, PropertyResponseBody } from '../localTypes/types';
 import { InfoResponse } from './models/InfoResponse';
-import { ChargerSocketsInfo, SocketType, parseChargerSocketsInfo } from './models/SocketType';
+import { parseChargerSocketsInfo } from './models/SocketType';
 import { ChargerDetails } from './models/ChargerDetails';
 import { SocketIndex, alfenProps, buildIds, forSocket, getActualValuePropIds, getCapabilityMap, normalizeApiId, propIdToApiId } from './alfenProps';
 import { Cap, type CapabilityId } from './homeyCapabilities';
@@ -267,12 +267,12 @@ export class AlfenApi {
         phases,
         limitWatts,
       });
-
-      return capabilitiesData;
     } catch (error) {
       this.#log('Request failed:', error);
-      throw new Error(`Request failed: ${error}`);
+      // Not all chargers support this reading (404 not found), treat as non-fatal and just return no limit data.
     }
+
+    return capabilitiesData;
   }
 
   async apiSetCurrentLimit(currentLimit: number, socketIndex: SocketIndex = 1) {
@@ -301,7 +301,7 @@ export class AlfenApi {
   async apiSetChargingLimit(limitWatts: number, activePhases: number = 3) {
     this.#log(`Executing apiSetChargingLimit: ${limitWatts} W, activePhases: ${activePhases}`);
 
-    if (!Number.isFinite(limitWatts) || limitWatts <= 0) return false;
+    if (!Number.isFinite(limitWatts) || limitWatts < 0) return false;
     if (!Number.isInteger(activePhases) || activePhases < 1 || activePhases > 3) return false;
 
     this.#log(`Setting charging limit: ${limitWatts} W, activePhases: ${activePhases}`);
@@ -606,14 +606,14 @@ export class AlfenApi {
       };
     }
 
-    if (capabilityId === Cap.EvCharging && typeof v === 'number') {
-      // Handle different property types that map to evcharger_charging:
-      // - value 1 from some properties -> true
-      // - operative mode (205F_0): 0 = operative -> true, 2 = in-operative -> false
-      if (v === 1) return { value: true };
-      if (v === 0 || v === 2) return { value: v === 0 };
-      return {};
-    }
+    // if (capabilityId === Cap.EvCharging && typeof v === 'number') {
+    //   // Handle different property types that map to evcharger_charging:
+    //   // - value 1 from some properties -> true
+    //   // - operative mode (205F_0): 0 = operative -> true, 2 = in-operative -> false
+    //   if (v === 1) return { value: true };
+    //   if (v === 0 || v === 2) return { value: v === 0 };
+    //   return {};
+    // }
 
     // String capabilities
     if (capabilityId === Cap.AuthMode || capabilityId === Cap.ChargeType || capabilityId === Cap.ChargeID) {
